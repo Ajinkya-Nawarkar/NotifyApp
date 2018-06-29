@@ -6,12 +6,22 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 
 import org.json.JSONObject;
 
@@ -42,57 +52,72 @@ public class MainActivity extends AppCompatActivity {
 
     public void notifyBtnClicked(View view)
     {
-        Toast toast = Toast.makeText(getApplicationContext(), "Ok, Notified!", Toast.LENGTH_LONG);
+        int notify_limit = 5;
+        String URL = "http://172.22.112.89:5002/notifications";
+        String mResponse = "";
+        String title = "Error: No Notification Folks.";
+        String headline = "Oops";
+
+        Toast toast = Toast.makeText(getApplicationContext(), "Notifying started!", Toast.LENGTH_LONG);
         toast.show();
-        String main = "Aj";
-        int id = 0;
-        try {
-            String result = "\"id\":711,\n" +
-                    "      \"main\":\"Smoke\",\n" +
-                    "      \"description\":\"smoke\",\n" +
-                    "      \"icon\":\"50n\"";
 
-            /*StringBuilder sb = new StringBuilder(); // for final result
-            String line = "";
-            BufferedReader reader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream())); // read whatever is returned by server
-            while ((line = reader.readLine()) != null) {
-                sb.append(line); // get response by line and append to StringBulder
+        for (int i =0; i< notify_limit; i++) {
+            get_GetJSON(URL);
+            SharedPreferences m = PreferenceManager.getDefaultSharedPreferences(this);
+            mResponse = m.getString("Response", "");
+
+            try {
+                JSONObject reader = new JSONObject(mResponse);
+                title = reader.getString("origin");
+                headline = reader.getString("headline");
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
             }
-            reader.close();
-            String result = sb.toString(); //this is a response to parse.*/
+            //Build Notification
+            notification.setSmallIcon(R.mipmap.ic_launcher)
+                    .setTicker("This is ticker")
+                    .setWhen(System.currentTimeMillis())
+                    .setContentTitle(title)
+                    .setContentText(headline)
+                    .setDeleteIntent(createOnDismissedIntent(this, uniqueID, mResponse));
 
+            //Builds the notifications and issues it
+            NotificationManager nm = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
+            nm.notify(uniqueID, notification.build());
 
-            JSONObject jsonResult = new JSONObject(result);// convert response to JSONObject
-            main = jsonResult.getString("main"); // Smoke
-            id = jsonResult.getInt("id"); // 711 and so on.
+            Intent finalIntent = new Intent(this, MainActivity.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, finalIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            notification.setContentIntent(pendingIntent);
+
+            try {
+                Thread.sleep(3000);                 //1000 milliseconds is one second.
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
 
         }
-        catch (Exception e) {
-
-            System.out.println(e.getMessage());
-
-        }
-
-        //Build Notificationn
-        notification.setSmallIcon(R.drawable.news);
-        notification.setTicker("This is ticker");
-        notification.setWhen(System.currentTimeMillis());
-        notification.setContentTitle(main);
-        notification.setContentText(id+"");
-
-        Intent newsIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, newsIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        notification.setContentIntent(pendingIntent);
-
-        //Builds the notifications and issues it
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        nm.notify(uniqueID, notification.build());
+        toast = Toast.makeText(getApplicationContext(), "Notifying completed!", Toast.LENGTH_LONG);
+        toast.show();
 
     }
 
-    private PendingIntent createOnDismissedIntent(Context context, int notificationId) {
+    private PendingIntent createOnDismissedIntent(Context context, int notificationId, String mResponse) {
         Intent intent = new Intent(context, NotificationDismissedReceiver.class);
         intent.putExtra("com.my.app.notificationId", notificationId);
+        try {
+            JSONObject reader = new JSONObject(mResponse);
+
+            intent.putExtra("origin", reader.getString("origin"));
+            intent.putExtra("timestamp", reader.getString("timestamp"));
+            intent.putExtra("headline", reader.getString("headline"));
+            intent.putExtra("uuid", reader.getString("uuid"));
+            intent.putExtra("classification", reader.getString("classification"));
+            System.out.println("Really HAHAHHAHAHAHAHAHAHAHHAHAAHAHAHHA");
+        }
+        catch(Exception e){
+            System.out.println(e.getMessage());
+            System.out.println("HAHAHHAHAHAHAHAHAHAHHAHAAHAHAHHA");
+        }
 
         PendingIntent pendingIntent =
                 PendingIntent.getBroadcast(context.getApplicationContext(),
@@ -100,34 +125,76 @@ public class MainActivity extends AppCompatActivity {
         return pendingIntent;
     }
 
+    private void sharedResponse(String response) {
+        SharedPreferences m = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = m.edit();
+        editor.putString("Response", response);
+        editor.commit();
+    }
+
+    public void get_GetJSON(String URL) {
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
+
+        JsonObjectRequest getRequest = new JsonObjectRequest(
+                Request.Method.GET,
+                URL,
+                null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        sharedResponse(response.toString());
+                        Log.e("Rest response", response.toString());
+
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.e("Rest response", error.toString());
+                    }
+                }
+        );
+
+        requestQueue.add(getRequest);
+    }
 
     public void start_notifyBtnClicked(View view)
     {
+        int notify_limit = 1;
+        String URL = "http://172.22.112.89:5002/notifications";
+        String mResponse = "";
+        String title = "Error: No Notification Folks.";
+        String headline = "Oops";
+
         Toast toast = Toast.makeText(getApplicationContext(), "Notifying started!", Toast.LENGTH_LONG);
         toast.show();
-        String main = "Aj";
-        int id = 0;
 
-        for (int i=0; i< 5; i++) {
+            get_GetJSON(URL);
+            SharedPreferences m = PreferenceManager.getDefaultSharedPreferences(this);
+            mResponse = m.getString("Response", "");
 
-            if ("news" == "news") {
-                //Build Notificationn
-
-                notification.setSmallIcon(R.drawable.news)
-                            .setTicker("This is ticker")
-                            .setWhen(System.currentTimeMillis())
-                            .setContentTitle(main)
-                            .setContentText(i + "")
-                            .setDeleteIntent(createOnDismissedIntent(this, uniqueID));
-
+            try {
+                JSONObject reader = new JSONObject(mResponse);
+                title = reader.getString("origin");
+                headline = reader.getString("headline");
             }
+            catch(Exception e){
+                System.out.println(e.getMessage());
+            }
+            //Build Notification
+            notification.setSmallIcon(R.mipmap.ic_launcher)
+                        .setTicker("This is ticker")
+                        .setWhen(System.currentTimeMillis())
+                        .setContentTitle(title)
+                        .setContentText(headline)
+                        .setDeleteIntent(createOnDismissedIntent(this, uniqueID, mResponse));
 
             //Builds the notifications and issues it
             NotificationManager nm = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
             nm.notify(uniqueID, notification.build());
 
-            Intent newsIntent = new Intent(this, MainActivity.class);
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, newsIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            Intent finalIntent = new Intent(this, MainActivity.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, finalIntent, PendingIntent.FLAG_UPDATE_CURRENT);
             notification.setContentIntent(pendingIntent);
 
             try {
@@ -135,7 +202,7 @@ public class MainActivity extends AppCompatActivity {
             } catch(InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }
-        }
+
 
         toast = Toast.makeText(getApplicationContext(), "Notifying completed!", Toast.LENGTH_LONG);
         toast.show();
