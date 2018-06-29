@@ -15,7 +15,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
+        <receiver
+             android:name=".NotificationDismissedReceiver"
+            android:exported="false">
+            <intent-filter>
+            <action android:name="com.my.app.receiver" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
